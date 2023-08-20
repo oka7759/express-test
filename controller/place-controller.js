@@ -1,5 +1,7 @@
 const uuid = require("uuid");
+const { validationResult } = require("express-validator");
 const HttpError = require("../models/http-error");
+const getCoordsForAddress = require("../util/location");
 
 let DUMMYDATA = [{ id: "p1", title: "63빌딩", creator: "u1" }];
 
@@ -14,22 +16,38 @@ const getPlaceById = (req, res, next) => {
   res.json({ place });
 };
 
-const getUserById = (req, res, next) => {
-  const placeId = req.params.uid;
-  const place = DUMMYDATA.find((p) => {
-    return p.creator === placeId;
+const getPlacesByUserId = (req, res, next) => {
+  const userId = req.params.uid;
+  const place = DUMMYDATA.filter((p) => {
+    return p.creator === userId;
   });
-  if (!place) {
+  if (!place || place.length === 0) {
     return next(new HttpError("사람 못찾음", 404));
   }
   res.json({ place });
 };
 
-const createPlace = (req, res, next) => {
-  const { title, creator } = req.body;
+const createPlace = async (req, res, next) => {
+  console.log("여기");
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    console.log(errors);
+    return next(new HttpError("입력정보를 확인핫헤요", 422));
+  }
+  const { title, creator, address } = req.body;
+
+  let coordinates;
+
+  try {
+    coordinates = await getCoordsForAddress(address);
+  } catch (error) {
+    return next(error);
+  }
+
   const createPlace = {
     id: uuid.v4(),
     title,
+    address: coordinates,
     creator,
   };
   DUMMYDATA.push(createPlace);
@@ -37,6 +55,11 @@ const createPlace = (req, res, next) => {
 };
 
 const updatePlace = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    console.log(errors);
+    throw new HttpError("입력정보를 확인핫헤요", 422);
+  }
   const placeId = req.params.pid;
   const { title } = req.body;
 
@@ -56,7 +79,7 @@ const deletePlace = (req, res, next) => {
 };
 
 exports.getPlaceById = getPlaceById;
-exports.getUserById = getUserById;
+exports.getPlacesByUserId = getPlacesByUserId;
 exports.createPlace = createPlace;
 exports.updatePlace = updatePlace;
 exports.deletePlace = deletePlace;
